@@ -1,0 +1,724 @@
+---
+title: "GD"
+author: "MP"
+date: "April 16, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+The Model
+
+```{r echo=FALSE}
+library(deSolve)
+library(rootSolve)
+```
+
+```{r}
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045, lamdaTr=.8*10^(-11))
+outtimes=seq(1,3650,by=1)
+ALmodel=function(t,y.values,parameters){
+        with(as.list(c(y.values,parameters)),{
+                
+                R=ifelse(t<=100,R0*(t/100),R0)
+                
+                dN.dt=-degNF*(Fi/(Fi+KFi))*N ##Without effect of Tau-alpha
+                
+                dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0   ##As is
+                
+                ## Without macrophage effect and estimating dN/dt
+                ##LamdaNd was (.6*10^(-3))
+                dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                        (dABoM*(M1+theta*M2))*(ABo/(ABo+KABo)) 
+                ## Reduce effect of AmyloidÎ² aggregation by a factor of h w/aducanumab
+                ##dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                ##        (dABoM*(M1+theta*M2)(1+h))*(ABo/(ABo+KABo))
+                
+                dA.dt=lamdaAABo*ABo+ lamdaMA*M1-degA*A ## Estimating Tau-alpha effect
+                
+                dTau.dt=(lamdaT0+lamdaT*R-dT*Tau)*(N/N0)   ##As is
+                ## Simulate reduction in production of Tau by reducing GSK-3
+                ## thereby reducing hyperphosphorylation
+                ##dTau.dt=(lamdaT0+lamdaT-g)*R -g -dT*Tau)*(N/N0)   
+                
+                dFi.dt= (lamdaF*Tau-degFi*Fi)*(N/N0) ## As is
+                
+                
+                dFo.dt= lamdaNd*Fi-degFo*Fo  ## estimating lamdaNd=dN/dt           
+                
+                
+                dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1 ##No AO effect, estimate BM1
+                
+                dM2.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2 ##No AO effect, estimate BM2
+                
+                return(list(c(dABi.dt,dABo.dt,dTau.dt,dFi.dt,dFo.dt,dA.dt,dM1.dt,dM2.dt, dN.dt)))
+        })
+}
+
+
+
+output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms,times = outtimes))
+```
+
+Initial Plots
+
+Neurons
+
+```{r}
+par(mfrow=c(1,1))
+matplot(output$time, output$N, xlab = "Time(days)", ylab = "Neurons (g/ml)", main="Concentration of Neurons", col="red")
+```
+
+Amyloid Beta
+
+```{r}
+#Amyloid Beta
+#par(mfrow=c(1,2))
+matplot(output$time, output$ABi, xlab = "Time(days)", ylab = 'Amyloid Beta Concentration Inside (g/ml)', main="Concentration of AmyloidB \n Inside Neuron", col="blue")
+#matplot(output$time, output$ABo, ylim = c(0,1.1*10^(-6)), xlab = "Time(days)", ylab = "ABo (g/ml)", main="Concentration ofAmyloidB \n Outside Neuron ", col = "blue", lwd = 5)
+```
+
+Tau
+
+```{r}
+#Tau
+matplot(output$time, output$Tau, xlab = "Time(days)", ylab = "Tau (g/ml)", main="Concentration of Tau", col = "darkred", lwd=5, type="l")
+```
+
+NFTs
+
+```{r}
+#NFTs
+par(mfrow=c(1,2)) 
+matplot(output$time, output$Fi, xlab = "Time(days)", ylab = "NFT (g/ml)", main="Concentration of NFTs\n Inside Neurons", lwd=5,type = "l")
+matplot(output$time, output$Fo,  xlab = "Time(days)", ylab = "NFT (g/ml)", main="Concentration of NFTs\n Outside Neurons", lwd = 5,type = "l")
+```
+
+Astrocytes
+
+```{r}
+#Astrocytes
+par(mfrow=c(1,1))
+matplot(output$time, output$A,  xlab = "Time(days)", ylab = "Astrocytes (g/ml)", main="Concentration of Astrocytes", col = "darkgreen", lwd = 5)
+```
+
+Microglias
+
+```{r}
+#Microglias
+par(mfrow=c(1,2))
+matplot(output$time, output$M1,  xlab = "Time(days)", ylab = "Microglia (g/ml)", main="Concentration of \n Type 1 Microglia", col = "purple", lwd = 5)
+
+matplot(output$time, output$M2,  xlab = "Time(days)", ylab = "Microglia (g/ml)", main="Concentration of \n Type 2 Microglia", col="purple", lwd = 5)
+```
+
+Sensitivity Analysis
+
+Sensitivity of lamda N on Amyloid Beta and Neurons
+
+```{r}
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045)
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+outtimes=seq(1,3650,by=1)
+
+vals=numeric(3)
+vals[1]=4*10^(-9)
+vals[2]=8*10^(-9)
+vals[3]=16*10^(-9)
+i=1
+par(mfrow=c(2,3))
+sense.analysis=function(func,vals){
+  for (i in 1:3) {
+    my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=vals[i],lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+               lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+               dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+               dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+               lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+               degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+               lamdaMA=.045)
+    output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+    plot(output$time,output$ABo, ylim=c(0, 1.7*10^(-6)), xlab = "Time(days)", ylab = "ABo(g/ml)", col="blue" )
+   
+    
+    i=i+1
+  }
+}
+
+res=as.data.frame(sense.analysis(ALmodel,vals))
+
+##Now the effect on neurons
+i=1
+
+sense.analysis=function(func,vals, plotvalue){
+    for (i in 1:3) {
+        my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=vals[i],lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                   lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                   dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                   dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                   lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                   degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                   lamdaMA=.045)
+        output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+        
+        plot(output$time,output$N, ylim = c(.075, .14), xlab="Time(days)",ylab = "Neurons(g/ml)" , col="red")
+      
+        i=i+1
+    }
+}
+
+
+res2=as.data.frame(sense.analysis(ALmodel,vals, output$N))
+
+```
+
+Sensitivity lamdaFon NFTs and Neurons
+
+```{r}
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045)
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+outtimes=seq(1,3650,by=1)
+par(mfrow=c(2,3))
+
+## Vary lamdaF 
+vals=numeric(3)
+vals[1]=8.31*10^(-4)       ## 1/2 the value
+vals[2]=1.662*10^(-3)      ## Original value used for model
+vals[3]=3.324*10^(-3)      ## 2x the value
+i=1
+
+##plot Fi for the three different lamda F values
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:3) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=vals[i],lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045)
+                output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+               
+                plot(output$time,output$Fi, ylim = c(1.5*10^(-10), 7*10^(-10)), xlab="Time(days)",ylab = "NFTs(g/ml)", lwd=5 )
+                
+                i=i+1
+        }
+}
+
+res=as.data.frame(sense.analysis(ALmodel,vals, output$Fi))
+
+## Rerun function to plot N
+
+i=1
+
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:3) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=vals[i],lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045)
+                output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+                
+                plot(output$time,output$N, ylim = c(.065, .14), xlab="Time(days)",ylab = "Neurons(g/ml)", col="red", lwd=5 )
+                
+                i=i+1
+        }
+}
+
+res2=as.data.frame(sense.analysis(ALmodel,vals, output$N))
+
+```
+
+Sensitivity of dNF on Neurons
+
+```{r}
+
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045)
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+outtimes=seq(1,3650,by=1)
+par(mfrow=c(2,3))
+
+## Vary degNF 
+vals=numeric(3)
+vals[1]=1.5*10^(-4)       ## 1/2 the value
+vals[2]=3*10^(-4)      ## Original value used for model
+vals[3]=6*10^(-4)      ## 2x the value
+i=1
+
+##plot N for the three different degNF values
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:3) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=vals[i],
+                           lamdaMA=.045)
+                output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+                
+                plot(output$time,output$N, ylim = c(.045, .14), xlab="Time(days)",ylab = "Neurons(g/ml)", type="l", lwd=5, col="red" )
+                
+               
+                i=i+1
+        }
+}
+
+res=as.data.frame(sense.analysis(ALmodel,vals, output$N))
+
+```
+
+Equilibria Analysis
+
+```{r}
+lamdaBi=9.51*10^(-6)
+lamdaN=8*10^(-9)
+lamdaA=8*10^(-10)
+lamdaT=1.35*10^(-11)
+lamdaF=1.662*10^(-3)
+lamdaAABo=1.793
+lamdaT0=8.1*10^(-11)
+MGo=.047
+dABoM=2*10^(-3)
+degABi=9.51
+lamdaNd=(.05/365)
+KABo=7*10^(-3)
+dT=.277
+degFi=2.77*10^(-3)
+degFo=2.77*10^(-4)
+degM1=.015
+degM2=.015
+lamdaMF=2*10^(-2)
+KFo=2.58*10^(-11)
+KFi=3.36*10^(-10)
+BM1=.9
+BM2=.09
+degA=1.2*10^(-3)
+theta=.9
+R0=6
+N0=.14
+A0=.14
+degNF=3*10^(-4)
+lamdaMA=.045
+R=0
+mod.for.roots <- function (Ns,my.parms){
+  N=Ns[1]
+  ABi=Ns[2]
+  ABo=Ns[3]
+  A=Ns[4]
+  Tau=Ns[5]
+  Fi=Ns[6]
+  Fo=Ns[7]
+  M1=Ns[8]
+  M2=Ns[9]
+  r=numeric()
+  r[1]=-degNF*(Fi/(Fi+KFi))*N
+  r[2]=dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0
+  r[3]=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-(dABoM*(M1+theta*M2))*(ABo/(ABo+KABo))
+  r[4]=lamdaAABo*ABo+ lamdaMA*M1-degA*A
+  r[5]=(lamdaT0+lamdaT*R-dT*Tau)*(N/N0)
+  r[6]=(lamdaF*Tau-degFi*Fi)*(N/N0)
+  r[7]=lamdaNd*Fi-degFo*Fo
+  r[8]=dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1
+  r[9]=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2
+  return(r)
+}
+
+Ns=c(N=0,
+ABi=7*10^(-6),
+ABo=1.2*10^(-6),
+A=2,
+Tau=6*10^(-10),
+Fi=3.5*10^(-10),
+Fo=1.4*10^(-10),
+M1=.05,
+M2=.005)
+ans=multiroot(mod.for.roots,start = Ns)
+ans$root
+##check stablity-test
+init.stabilityN=c(N=0.000000001,ABi=.000001,ABo=.00000001,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                  Fo=3.36*10^(-11),M1=.02,M2=.02)
+
+ansN=multiroot(mod.for.roots,start = init.stabilityN)
+ansN$root
+
+init.stabilityN1=c(N=0.0000001,ABi=.000001,ABo=.00000001,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                  Fo=3.36*10^(-11),M1=.02,M2=.02)
+
+ansN1=multiroot(mod.for.roots,start = init.stabilityN)
+ansN1$root
+
+init.stabilityABi=c(N=0.14,ABi=.0000071,ABo=.00000001,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                  Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansABi=multiroot(mod.for.roots,start = init.stabilityABi)
+ansABi$root
+
+init.stabilityABi1=c(N=0.14,ABi=.000006,ABo=.00000001,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansABi1=multiroot(mod.for.roots,start = init.stabilityABi1)
+ansABi1$root
+
+init.stabilityABo=c(N=0.14,ABi=.000001,ABo=.0000011,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansABo=multiroot(mod.for.roots,start = init.stabilityABo)
+ansABo$root
+
+init.stabilityABo1=c(N=0.14,ABi=.000001,ABo=.00000012,A=.14,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansABo1=multiroot(mod.for.roots,start = init.stabilityABo1)
+ansABo1$root
+
+init.stabilityA=c(N=0.14,ABi=.000001,ABo=.00000001,A=1.9,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                     Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansA=multiroot(mod.for.roots,start = init.stabilityA)
+ansA$root
+
+init.stabilityA1=c(N=0.14,ABi=.000001,ABo=.00000001,A=2.1,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+                  Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansA1=multiroot(mod.for.roots,start = init.stabilityA1)
+ansA1$root
+
+init.stabilityTau=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=6.1*10^(-10),Fi=3.36*10^(-10),
+                   Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansTau=multiroot(mod.for.roots,start = init.stabilityTau)
+ansTau$root
+
+init.stabilityTau1=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=5.9*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansTau1=multiroot(mod.for.roots,start = init.stabilityTau1)
+ansTau1$root
+
+init.stabilityFi=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                     Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansFi=multiroot(mod.for.roots,start = init.stabilityFi)
+ansFi$root
+
+init.stabilityFi1=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.34*10^(-10),
+                   Fo=3.36*10^(-11),M1=.02,M2=.02)
+ansFi1=multiroot(mod.for.roots,start = init.stabilityFi1)
+ansFi1$root
+
+
+init.stabilityFo=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                   Fo=1.3*10^(-10),M1=.02,M2=.02)
+ansFo=multiroot(mod.for.roots,start = init.stabilityFo)
+ansFo$root
+
+init.stabilityFo1=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                   Fo=1.4*10^(-10),M1=.02,M2=.02)
+ansFo1=multiroot(mod.for.roots,start = init.stabilityFo1)
+ansFo1$root
+
+init.stabilityM1=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.049,M2=.02)
+ansM1=multiroot(mod.for.roots,start = init.stabilityM1)
+ansM1$root
+
+init.stabilityM11=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                   Fo=3.36*10^(-11),M1=.059,M2=.02)
+ansM11=multiroot(mod.for.roots,start = init.stabilityM11)
+ansM11$root
+
+init.stabilityM2=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                    Fo=3.36*10^(-11),M1=.02,M2=.0049)
+ansM2=multiroot(mod.for.roots,start = init.stabilityM2)
+ansM2$root
+
+init.stabilityM21=c(N=0.14,ABi=.000001,ABo=.00000001,A=.14,Tau=3.4*10^(-10),Fi=3.36*10^(-10),
+                   Fo=3.36*10^(-11),M1=.02,M2=.0059)
+ansM21=multiroot(mod.for.roots,start = init.stabilityM21)
+ansM21$root
+##check stablity-function
+mod.for.stability <- function (t = 0, y, parms = NULL) {
+  N=y[1]
+  ABi=y[2]
+  ABo=y[3]
+  A=y[4]
+  Tau=y[5]
+  Fi=y[6]
+  Fo=y[7]
+  M1=y[8]
+  M2=y[9]
+  dN.dt=-degNF*(Fi/(Fi+KFi))*N ##Without effect of Tau-alpha
+  
+  dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0   ##As is
+  
+  ## Without macrophage effect and estimating dN/dt
+  ##LamdaNd was (.6*10^(-3))
+  dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+    (dABoM*(M1+theta*M2))*(ABo/(ABo+KABo)) 
+  
+  dA.dt=lamdaAABo*ABo+ lamdaMA*M1-degA*A ## Estimating Tau-alpha effect
+  
+  dTau.dt=(lamdaT0+lamdaT*R-dT*Tau)*(N/N0)   ##As is
+  
+  dFi.dt= (lamdaF*Tau-degFi*Fi)*(N/N0) ## As is
+  
+  
+  dFo.dt= lamdaNd*Fi-degFo*Fo  ## estimating lamdaNd=dN/dt           
+  
+  
+  dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1 ##No AO effect, estimate BM1
+  
+  dM2.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2 ##No AO effect, estimate BM2
+  
+  return(as.list(c(dN.dt,dABi.dt,dABo.dt,dA.dt,dTau.dt,dFi.dt,dFo.dt,dM1.dt,dM2.dt)))
+}
+
+J <- jacobian.full(y =ans$root, func = mod.for.stability)
+eigen(J)
+#plot(eigen(J))
+
+
+```
+
+Treatment Analysis
+
+Treatment with Aducanumab
+
+```{r}
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045, lamdaTr=.8*10^(-11), h=0)
+outtimes=seq(1,3650,by=1)
+ALmodeltreata=function(t,y.values,parameters){
+        with(as.list(c(y.values,parameters)),{
+                
+                R=ifelse(t<=100,R0*(t/100),R0)
+                
+                dN.dt=-degNF*(Fi/(Fi+KFi))*N ##Without effect of Tau-alpha
+                
+                dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0   ##As is
+                
+               
+                ## Reduce effect of AmyloidÎ² aggregation by a factor of h w/aducanumab
+                dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                        (dABoM*(M1+theta*M2)*(1+h))*(ABo/(ABo+KABo)) 
+                
+                
+                dA.dt=lamdaAABo*ABo+ lamdaMA*M1-degA*A ## Estimating Tau-alpha effect
+                
+                dTau.dt=(lamdaT0+lamdaT*R-dT*Tau)*(N/N0)   ##As is
+                   
+                
+                dFi.dt= (lamdaF*Tau-degFi*Fi)*(N/N0) ## As is
+                
+                
+                dFo.dt= lamdaNd*Fi-degFo*Fo  ## estimating lamdaNd=dN/dt           
+                
+                
+                dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1 ##No AO effect, estimate BM1
+                
+                dM2.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2 ##No AO effect, estimate BM2
+                
+                return(list(c(dABi.dt,dABo.dt,dTau.dt,dFi.dt,dFo.dt,dA.dt,dM1.dt,dM2.dt, dN.dt)))
+        })
+}
+
+
+outtimes=seq(1,3650,by=1)
+par(mfrow=c(2,2))
+
+## Vary treatment effect, h 
+vals=numeric(4)
+vals[1]=0         ## Original result
+vals[2]=.2      ## 20% reduction/increase
+vals[3]=.3        ## 30% reduction/increase
+vals[4]=.4       ## 40% reduction/increase
+i=1
+
+##plot ABo for the three different treatment values
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:4) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045, h=vals[i])
+                output=as.data.frame(ode(func = ALmodeltreata,y=init.values,parms = my.parms, times = outtimes))
+                
+                plot(output$time,output$ABo, ylim = c(0, 12*10^(-7)), xlab="Time(days)",ylab = "ABo(g/ml)", col="blue" )
+                
+                
+                i=i+1
+        }
+}
+
+res=as.data.frame(sense.analysis(ALmodeltreata,vals, output$Fi))
+
+## Rerun function to plot N
+
+i=1
+
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:3) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045, h=vals[i])
+                output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms, times = outtimes))
+                
+                plot(output$time,output$N, ylim = c(.065, .14), xlab="Time(days)",ylab = "Neurons(g/ml)", col="red", lwd=5 )
+                
+               
+                i=i+1
+        }
+}
+
+
+res2=as.data.frame(sense.analysis(ALmodeltreata,vals, output$N))
+```
+
+Treatment on GSK-3
+
+
+```{r}
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045, lamdaTr=.8*10^(-11), g=0)
+outtimes=seq(1,3650,by=1)
+ALmodeltreatb=function(t,y.values,parameters){
+        with(as.list(c(y.values,parameters)),{
+                
+                R=ifelse(t<=100,R0*(t/100),R0)
+                
+                dN.dt=-degNF*(Fi/(Fi+KFi))*N ##Without effect of Tau-alpha
+                
+                dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0   ##As is
+
+                
+                dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                        (dABoM*(M1+theta*M2))*(ABo/(ABo+KABo))
+                
+                dA.dt=lamdaAABo*ABo+ lamdaMA*M1-degA*A ## Estimating Tau-alpha effect
+                
+                
+                ## Simulate reduction in production of Tau by reducing GSK-3
+                ## thereby reducing hyperphosphorylation
+                dTau.dt=(lamdaT0+(lamdaT-g*lamdaT)*R -dT*Tau)*(N/N0)   
+                
+                dFi.dt= (lamdaF*Tau-degFi*Fi)*(N/N0) ## As is
+                
+                
+                dFo.dt= lamdaNd*Fi-degFo*Fo  ## estimating lamdaNd=dN/dt           
+                
+                
+                dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1 ##No AO effect, estimate BM1
+                
+                dM2.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2 ##No AO effect, estimate BM2
+                
+                return(list(c(dABi.dt,dABo.dt,dTau.dt,dFi.dt,dFo.dt,dA.dt,dM1.dt,dM2.dt, dN.dt)))
+        })
+}
+
+
+outtimes=seq(1,3650,by=1)
+par(mfrow=c(2,2))
+
+## Vary treatment effect, h 
+vals=numeric(4)
+vals[1]= 0     ## Original result
+vals[2]= .1     ## 10% reduction/increase
+vals[3]= .2     ## 20% reduction/increase
+vals[4]= .3      ## 30% reduction/increase
+i=1
+
+##plot NFT for the three different treatment values plus original
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:4) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045, g=vals[i])
+                output=as.data.frame(ode(func = ALmodeltreatb,y=init.values,parms = my.parms, times = outtimes))
+               
+                plot(output$time,output$Fi, ylim = c(2.9*10^(-10), 3.6*10^(-10)), xlab="Time(days)",ylab = "NFT(g/ml)" )
+                
+                i=i+1
+        }
+}
+
+res=as.data.frame(sense.analysis(ALmodeltreatb,vals, output$Fi))
+
+## Rerun function to plot N
+
+i=1
+par(mfrow=c(2,2))
+sense.analysis=function(func,vals, plotvalue){
+        for (i in 1:4) {
+                my.parms=c(lamdaBi=9.51*10^(-7),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+                           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+                           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+                           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+                           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+                           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+                           lamdaMA=.045, g=vals[i])
+                output=as.data.frame(ode(func = ALmodeltreatb, y=init.values,parms = my.parms, times = outtimes))
+                
+                plot(output$time,output$N, ylim = c(.065, .14), xlab="Time(days)",ylab = "Neurons(g/ml)", col="red", lwd=5 )
+                
+              
+                i=i+1
+        }
+}
+
+res2=as.data.frame(sense.analysis(ALmodeltreatb,vals, output$N))
+
+```
+
+
