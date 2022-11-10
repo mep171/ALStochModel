@@ -172,70 +172,6 @@ out4=ALStochModelV5(3650)
 out5=ALStochModelV5(3650)
 
 
-plot(out$tnow,out$Nval,type = "l")
-lines(out2$tnow,out2$Nval)
-lines(out3$tnow,out3$Nval)
-lines(out4$tnow,out4$Nval)
-lines(out5$tnow,out5$Nval)
-lines(output$time,output$N)
-
-
-
-plot(out$tnow,out$ABival,type = "l")
-lines(out2$tnow,out2$ABival)
-lines(out3$tnow,out3$ABival)
-lines(out4$tnow,out4$ABival)
-lines(out5$tnow,out5$ABival)
-lines(output$time,output$ABi)
-
-plot(out$tnow,out$ABoval)
-lines(out2$tnow,out2$ABoval)
-lines(out3$tnow,out3$ABoval)
-lines(out4$tnow,out4$ABoval)
-lines(out5$tnow,out5$ABoval)
-lines(output$time,output$ABo)
-
-plot(out$tnow,out$Tauval)
-lines(out2$tnow,out2$Tauval)
-lines(out3$tnow,out3$Tauval)
-lines(out4$tnow,out4$Tauval)
-lines(out5$tnow,out5$Tauval)
-lines(output$time,output$Tau)
-
-plot(out$tnow,out$Fival)
-lines(out2$tnow,out2$Fival)
-lines(out3$tnow,out3$Fival)
-lines(out4$tnow,out4$Fival)
-lines(out5$tnow,out5$Fival)
-lines(output$time,output$Fi)
-
-plot(out$tnow,out$Foval)
-lines(out2$tnow,out2$Foval)
-lines(out3$tnow,out3$Foval)
-lines(out4$tnow,out4$Foval)
-lines(out5$tnow,out5$Foval)
-lines(output$time,output$Fo)
-
-plot(out$tnow,out$M1val)
-lines(out2$tnow,out2$M1val)
-lines(out3$tnow,out3$M1val)
-lines(out4$tnow,out4$M1val)
-lines(out5$tnow,out5$M1val)
-lines(output$time,output$M1)
-
-plot(out$tnow,out$M2val)
-lines(out2$tnow,out2$M2val)
-lines(out3$tnow,out3$M2val)
-lines(out4$tnow,out4$M2val)
-lines(out5$tnow,out5$M2val)
-lines(output$time,output$M2)
-
-plot(out$tnow,out$Aval)
-lines(out2$tnow,out2$Aval)
-lines(out3$tnow,out3$Aval)
-lines(out4$tnow,out4$Aval)
-lines(out5$tnow,out5$Aval)
-lines(output$time,output$A)
 
 
 ##Stoch Neuron Graph
@@ -259,7 +195,6 @@ for (i in 2:25) {
   lines(out$tnow,out$ABival,lty=style[i],col=cols[i],lwd=1.5)
 }
 legend('bottomright',c('1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th','13th','14th','15th','16th','17th','18th','19th','20th','21st','22nd','23rd','24th','25th'),col =cols,lty = style,ncol = 2 ,title = "Run #")
-
 
 
 
