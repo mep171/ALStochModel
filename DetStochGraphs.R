@@ -1,5 +1,58 @@
-##Stoch & Det Neuron Graph
+library(deSolve)
+library(rootSolve)
+##Deterministic Model
+init.values=c(ABi=.000001,ABo=.00000001,Tau=1.37*10^(-10),Fi=3.36*10^(-10),
+              Fo=3.36*10^(-11),A=.14,M1=.02,M2=.02, N=.14)
+my.parms=c(lamdaBi=9.51*10^(-6),lamdaN=8*10^(-9),lamdaA=8*10^(-10),lamdaT=1.35*10^(-11),
+           lamdaF=1.662*10^(-3),lamdaAABo=1.793,lamdaT0=8.1*10^(-11), MGo=.047,
+           dABoM=2*10^(-3),degABi=9.51,lamdaNd=(.05/365), KABo=7*10^(-3),
+           dT=.277, degFi=2.77*10^(-3),degFo=2.77*10^(-4),degM1=.015, degM2=.015,
+           lamdaMF=2*10^(-2),KFo=2.58*10^(-11),KFi=3.36*10^(-10), BM1=.9,BM2=.09,
+           degA=1.2*10^(-3),theta=.9,R0=6,N0=.14, A0=.14, degNF=3*10^(-4),
+           lamdaMA=.045, lamdaTr=.8*10^(-11))
+outtimes=seq(1,3650,by=1)
+ALmodel=function(t,y.values,parameters){
+        with(as.list(c(y.values,parameters)),{
+                
+                R=ifelse(t<=100,R0*(t/100),R0)
+                
+                dN.dt=-degNF*(Fi/(Fi+KFi))*N ##Without effect of Tau-alpha
+                
+                dABi.dt=(lamdaBi*(1+R)-degABi*ABi)*N/N0   ##As is
+                
+                ## Without macrophage effect and estimating dN/dt
+                ##LamdaNd was (.6*10^(-3))
+                dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                        (dABoM*(M1+theta*M2))*(ABo/(ABo+KABo)) 
+                ## Reduce effect of AmyloidÎ² aggregation by a factor of h w/aducanumab
+                ##dABo.dt=ABi*lamdaNd+lamdaN*(N/N0)+lamdaA*A/A0-
+                ##        (dABoM*(M1+theta*M2)(1+h))*(ABo/(ABo+KABo))
+                
+                dA.dt=lamdaAABo*ABo+ lamdaMA*M1-degA*A ## Estimating Tau-alpha effect
+                
+                dTau.dt=(lamdaT0+lamdaT*R-dT*Tau)*(N/N0)   ##As is
+                ## Simulate reduction in production of Tau by reducing GSK-3
+                ## thereby reducing hyperphosphorylation
+                ##dTau.dt=(lamdaT0+lamdaT-g)*R -g -dT*Tau)*(N/N0)   
+                
+                dFi.dt= (lamdaF*Tau-degFi*Fi)*(N/N0) ## As is
+                
+                
+                dFo.dt= lamdaNd*Fi-degFo*Fo  ## estimating lamdaNd=dN/dt           
+                
+                
+                dM1.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM1-degM1*M1 ##No AO effect, estimate BM1
+                
+                dM2.dt=MGo*(lamdaMF*(Fo/(Fo+KFo)))*BM2-degM2*M2 ##No AO effect, estimate BM2
+                
+                return(list(c(dABi.dt,dABo.dt,dTau.dt,dFi.dt,dFo.dt,dA.dt,dM1.dt,dM2.dt, dN.dt)))
+        })
+}
+output=as.data.frame(ode(func = ALmodel,y=init.values,parms = my.parms,times = outtimes))
 
+
+
+##Stoch & Det Neuron Graph
 plot(out$tnow,out$Nval,type = 'l',lty=1,ylab = 'Neuron Concentration (g/ml)', xlab = 'Time (days)',lwd=1.5,main = "Neuron Concentration Over 10 Years, Stochastic Vs Deterministic",col="red")
 #meanN=c(mean(out$Nval))
 for (i in 2:25) {
